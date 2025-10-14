@@ -31,29 +31,65 @@ class DatabaseManager:
         self.sqlite_connection = None
         self.lock = threading.Lock()
         self.setup_local_db()
+        # Parámetros de keepalive para conexiones estables en redes poco confiables
+        self._pg_keepalive = dict(
+            keepalives=1,
+            keepalives_idle=30,      # segundos de inactividad antes de enviar keepalive
+            keepalives_interval=10,  # intervalo entre keepalives
+            keepalives_count=3       # reintentos antes de considerar caída
+        )
         
     def connect_postgresql(self):
-        """Conectar a PostgreSQL"""
+        """Establece conexión a PostgreSQL si no existe y retorna True si queda conectada."""
         if not POSTGRESQL_AVAILABLE:
             return False
-            
         try:
-            # Soporte opcional de SSL: establecer DB_SSLMODE=require si el proveedor lo exige
+            if self.pg_connection and getattr(self.pg_connection, 'closed', 1) == 0:
+                return True
+            # Soporte opcional de SSL y keepalive
             conn_kwargs = dict(
                 host=os.getenv('DB_HOST', 'localhost'),
                 port=os.getenv('DB_PORT', '5432'),
                 database=os.getenv('DB_NAME', 'asistencia_nfc'),
                 user=os.getenv('DB_USER', 'postgres'),
-                password=os.getenv('DB_PASSWORD', '')
+                password=os.getenv('DB_PASSWORD', ''),
+                **self._pg_keepalive,
             )
             sslmode = os.getenv('DB_SSLMODE')
             if sslmode:
                 conn_kwargs['sslmode'] = sslmode
             self.pg_connection = psycopg2.connect(**conn_kwargs)
+            # autocommit para operaciones simples y menor latencia
+            try:
+                self.pg_connection.autocommit = False
+            except Exception:
+                pass
             return True
         except Exception as e:
             print(f"Error conectando a PostgreSQL: {e}")
+            self.pg_connection = None
             return False
+
+    def _get_pg_conn(self):
+        """Obtiene una conexión activa a PostgreSQL, intentando reconectar si es necesario. Retorna None si no hay."""
+        if not POSTGRESQL_AVAILABLE:
+            return None
+        try:
+            if self.pg_connection is None or getattr(self.pg_connection, 'closed', 1) != 0:
+                if not self.connect_postgresql():
+                    return None
+            # Ping ligero
+            try:
+                cur = self.pg_connection.cursor()
+                cur.execute('SELECT 1')
+                cur.fetchone()
+            except Exception:
+                # Intentar reconectar una vez
+                if not self.connect_postgresql():
+                    return None
+            return self.pg_connection
+        except Exception:
+            return None
     
     def setup_local_db(self):
         """Configurar base de datos local SQLite para cuando no hay internet"""
@@ -178,18 +214,19 @@ class DatabaseManager:
             print(f"Error creando admin por defecto: {e}")
     
     def is_online(self):
-        """Verificar si hay conexión a internet y PostgreSQL"""
-        return self.connect_postgresql()
+        """Verificar si hay conexión válida a PostgreSQL con ping ligero."""
+        return self._get_pg_conn() is not None
     
     def sync_empleados_to_local(self):
         """Sincronizar empleados de PostgreSQL a SQLite"""
-        if not self.is_online():
+        conn = self._get_pg_conn()
+        if not conn:
             return False
             
         try:
             with self.lock:
                 # Obtener empleados de PostgreSQL
-                pg_cursor = self.pg_connection.cursor()
+                pg_cursor = conn.cursor()
                 pg_cursor.execute("""
                     SELECT id, nombre_completo, cargo, rol, nfc_uid, foto_path, 
                            hora_entrada, hora_salida, activo
@@ -217,7 +254,8 @@ class DatabaseManager:
     
     def sync_registros_to_cloud(self):
         """Sincronizar registros locales a PostgreSQL"""
-        if not self.is_online():
+        conn = self._get_pg_conn()
+        if not conn:
             return False
             
         try:
@@ -233,7 +271,7 @@ class DatabaseManager:
                 if not registros_pendientes:
                     return True
                 
-                pg_cursor = self.pg_connection.cursor()
+                pg_cursor = conn.cursor()
                 
                 for registro in registros_pendientes:
                     empleado_id, ubicacion_nombre, fecha, hora_registro, tipo_movimiento, estado = registro
@@ -253,7 +291,7 @@ class DatabaseManager:
                         VALUES (%s, %s, %s, %s, %s, %s, TRUE)
                     """, (empleado_id, ubicacion_id, fecha, hora_registro, tipo_movimiento, estado))
                 
-                self.pg_connection.commit()
+                conn.commit()
                 
                 # Marcar como sincronizados en SQLite
                 sqlite_cursor.execute("UPDATE registros_local SET sincronizado = 1 WHERE sincronizado = 0")
@@ -272,9 +310,10 @@ class DatabaseManager:
         
         try:
             with self.lock:
-                if self.is_online():
+                conn = self._get_pg_conn()
+                if conn:
                     # Insertar directamente en PostgreSQL
-                    pg_cursor = self.pg_connection.cursor()
+                    pg_cursor = conn.cursor()
                     pg_cursor.execute("SELECT id FROM ubicaciones WHERE nombre = %s", (ubicacion_nombre,))
                     ubicacion_result = pg_cursor.fetchone()
                     
@@ -285,7 +324,7 @@ class DatabaseManager:
                             (empleado_id, ubicacion_id, fecha, hora_registro, tipo_movimiento, estado, sincronizado)
                             VALUES (%s, %s, %s, %s, %s, %s, TRUE)
                         """, (empleado_id, ubicacion_id, fecha_actual, hora_actual, tipo_movimiento, estado))
-                        self.pg_connection.commit()
+                        conn.commit()
                 else:
                     # Guardar localmente
                     sqlite_cursor = self.sqlite_connection.cursor()
@@ -518,8 +557,9 @@ class DatabaseManager:
             
         try:
             with self.lock:
-                if self.is_online():
-                    pg_cursor = self.pg_connection.cursor()
+                conn = self._get_pg_conn()
+                if conn:
+                    pg_cursor = conn.cursor()
                     pg_cursor.execute("""
                         SELECT e.id, e.nombre_completo, e.foto_path, r.hora_registro, 
                                r.tipo_movimiento, r.estado, u.nombre
@@ -550,14 +590,15 @@ class DatabaseManager:
         """Borrar registros de un empleado en una fecha específica. Retorna cantidad borrada."""
         try:
             with self.lock:
-                if self.is_online():
-                    cur = self.pg_connection.cursor()
+                conn = self._get_pg_conn()
+                if conn:
+                    cur = conn.cursor()
                     cur.execute(
                         "DELETE FROM registros_asistencia WHERE empleado_id = %s AND fecha = %s RETURNING 1",
                         (empleado_id, fecha_iso),
                     )
                     borrados = cur.rowcount
-                    self.pg_connection.commit()
+                    conn.commit()
                     return borrados
                 else:
                     cur = self.sqlite_connection.cursor()
@@ -576,14 +617,15 @@ class DatabaseManager:
         """Borrar registros de un empleado por mes (YYYY, MM). Retorna cantidad borrada."""
         try:
             with self.lock:
-                if self.is_online():
-                    cur = self.pg_connection.cursor()
+                conn = self._get_pg_conn()
+                if conn:
+                    cur = conn.cursor()
                     cur.execute(
                         "DELETE FROM registros_asistencia WHERE empleado_id = %s AND EXTRACT(YEAR FROM fecha) = %s AND EXTRACT(MONTH FROM fecha) = %s RETURNING 1",
                         (empleado_id, year, month),
                     )
                     borrados = cur.rowcount
-                    self.pg_connection.commit()
+                    conn.commit()
                     return borrados
                 else:
                     cur = self.sqlite_connection.cursor()
@@ -602,14 +644,15 @@ class DatabaseManager:
         """Borrar TODOS los registros de un empleado. Retorna cantidad borrada."""
         try:
             with self.lock:
-                if self.is_online():
-                    cur = self.pg_connection.cursor()
+                conn = self._get_pg_conn()
+                if conn:
+                    cur = conn.cursor()
                     cur.execute(
                         "DELETE FROM registros_asistencia WHERE empleado_id = %s RETURNING 1",
                         (empleado_id,),
                     )
                     borrados = cur.rowcount
-                    self.pg_connection.commit()
+                    conn.commit()
                     return borrados
                 else:
                     cur = self.sqlite_connection.cursor()
