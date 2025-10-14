@@ -1,16 +1,16 @@
 {
   "sites": {
     "Tepanecos": {
-      "readerName": "ACS ACR122 0",
-      "readerIndex": 1
+      "readerName": "",
+      "readerIndex": 0
     },
     "Lerdo": {
-      "readerName": "ACS ACR122 1",
-      "readerIndex": 2
+      "readerName": "",
+      "readerIndex": 0
     },
     "DESTINO": {
-      "readerName": "ACS ACR122 2",
-      "readerIndex": 3
+      "readerName": "",
+      "readerIndex": 0
     }
   }
 }
