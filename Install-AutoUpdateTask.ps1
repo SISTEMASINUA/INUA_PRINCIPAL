@@ -14,11 +14,12 @@ $taskName = "AsistenciaNFC AutoUpdate"
 $ps = (Get-Command powershell.exe).Source
 $script = "-NoProfile -ExecutionPolicy Bypass -File `"$root\Update-From-GitHub.ps1`" -RepoUrl `"$RepoUrl`" -Branch `"$Branch`""
 $action = New-ScheduledTaskAction -Execute $ps -Argument $script
-$trigger = New-ScheduledTaskTrigger -Daily -At ([datetime]::Today.AddHours($Hour).AddMinutes($Minute)).TimeOfDay
+$runAt = (Get-Date).Date.AddHours($Hour).AddMinutes($Minute)
+$trigger = New-ScheduledTaskTrigger -Daily -At $runAt
 
 # Registrar/actualizar tarea
 try {
   Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
 } catch {}
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Description "Actualiza AsistenciaNFC desde GitHub" -RunLevel Highest | Out-Null
-Write-Host "Tarea programada creada: $taskName a las $Hour:$('{0:00}' -f $Minute)" -ForegroundColor Green
+Write-Host ("Tarea programada creada: {0} a las {1}:{2:00}" -f $taskName, $Hour, $Minute) -ForegroundColor Green
