@@ -696,26 +696,33 @@ class DatabaseManager:
             return False
 
     def _create_local_user(self, username: str, password: str, role: str = 'ADMIN', force: bool = False) -> bool:
+        """Crea usuario local. Si force=False, es idempotente: no falla si ya existe (retorna False para indicar que no se creó)."""
+        username = (username or '').strip()
+        if not username or not password:
+            return False
+        ph = self._hash_password(password)
+        c = self.sqlite_connection.cursor()
         try:
-            username = username.strip()
-            if not username or not password:
-                return False
-            ph = self._hash_password(password)
-            c = self.sqlite_connection.cursor()
             if force:
+                # Reemplaza si existe; crea si no.
                 c.execute(
                     "INSERT OR REPLACE INTO usuarios_local (id, username, password_hash, role, activo) "
                     "VALUES ((SELECT id FROM usuarios_local WHERE username = ?), ?, ?, ?, 1)",
                     (username, username, ph, role)
                 )
+                self.sqlite_connection.commit()
+                return True
             else:
+                # No forzado: crear solo si no existe, sin generar error
                 c.execute(
-                    "INSERT INTO usuarios_local (username, password_hash, role, activo) VALUES (?, ?, ?, 1)",
+                    "INSERT OR IGNORE INTO usuarios_local (username, password_hash, role, activo) VALUES (?, ?, ?, 1)",
                     (username, ph, role)
                 )
-            self.sqlite_connection.commit()
-            return True
+                self.sqlite_connection.commit()
+                # rowcount==0 implica que ya existía y se ignoró
+                return c.rowcount > 0
         except Exception as e:
+            # Cualquier otro error inesperado
             print(f"Error creando usuario: {e}")
             return False
 
