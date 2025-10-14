@@ -241,7 +241,8 @@ class MainPublicScreen:
                 except Exception as e:
                     print(f"Error en sincronización: {e}")
                 
-                time.sleep(max(2, sync_interval))
+                # Permitir intervalo mínimo de 1s
+                time.sleep(max(1, sync_interval))
         
         sync_thread = threading.Thread(target=sync_service, daemon=True)
         sync_thread.start()
@@ -253,8 +254,9 @@ class MainPublicScreen:
             except Exception as e:
                 print(f"Error actualizando lista: {e}")
             finally:
-                self.root.after(max(2000, sync_interval * 1000), refresh_loop)
-        self.root.after(max(2000, sync_interval * 1000), refresh_loop)
+                # Permitir intervalo mínimo de 1s
+                self.root.after(max(1000, sync_interval * 1000), refresh_loop)
+        self.root.after(max(1000, sync_interval * 1000), refresh_loop)
     
     def update_records_list(self):
         """Actualizar lista de registros del día"""
