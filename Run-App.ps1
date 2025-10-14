@@ -6,7 +6,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$venvPython = Join-Path $root '..\..\.venv\Scripts\python.exe'
+$venvPython = Join-Path $root '.\.venv\Scripts\python.exe'
 $appDir = $root
 
 if (!(Test-Path $venvPython)) {

@@ -31,14 +31,14 @@ function New-Shortcut([string]$LinkPath, [string]$TargetPath, [string]$Arguments
 }
 
 # Icono: si hay assets/app_icon.png lo convertimos a .ico y lo usamos; si no, fallback a python.exe/cmd
-$py311exe = Join-Path $root '..\.venv311\Scripts\python.exe'
+$py311exe = Join-Path $root '.\.venv311\Scripts\python.exe'
 if (Test-Path $pngPath) {
     try {
         if (!(Test-Path $icoPath)) {
             if (Test-Path $py311exe) {
                 & $py311exe $makeIco | Out-Null
             } else {
-                $pyvenv = Join-Path $root '..\.venv\Scripts\python.exe'
+                $pyvenv = Join-Path $root '.\.venv\Scripts\python.exe'
                 if (Test-Path $pyvenv) { & $pyvenv $makeIco | Out-Null }
             }
         }

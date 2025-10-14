@@ -5,8 +5,8 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$py311 = Join-Path $root '..\.venv311\Scripts\python.exe'
-$pyvenv = Join-Path $root '..\.venv\Scripts\python.exe'
+$py311 = Join-Path $root '.\.venv311\Scripts\python.exe'
+$pyvenv = Join-Path $root '.\.venv\Scripts\python.exe'
 $appDir = $root
 
 if (!(Test-Path $py311) -and !(Test-Path $pyvenv)) { throw "No se encontró Python en $py311 ni $pyvenv" }

@@ -8,7 +8,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$taskName = "AsistenciaNFC AutoUpdate"
+$taskName = "AsistenciaNFC-AutoUpdate"
 
 # Acción: ejecutar PowerShell que invoca Update-From-GitHub.ps1
 $ps = (Get-Command powershell.exe).Source

@@ -62,7 +62,7 @@ Write-Ok "Código actualizado desde GitHub y archivos locales preservados"
 
 # Reinstalar deps si cambió requirements
 if (Test-Path (Join-Path $root 'requirements.txt')) {
-  $py = Join-Path $root '..\.venv\Scripts\python.exe'
+  $py = Join-Path $root '.\.venv\Scripts\python.exe'
   if (Test-Path $py) {
     & $py -m pip install -r requirements.txt
     Write-Ok "Dependencias verificadas"

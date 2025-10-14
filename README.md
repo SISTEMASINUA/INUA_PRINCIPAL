@@ -102,7 +102,7 @@ ADMIN_PASSWORD=admin123
 - Desde consola:
 
 ```
-..\.venv\Scripts\python.exe main.py
+.\.venv\Scripts\python.exe main.py
 ```
 
 4) Administración y sincronización
@@ -314,8 +314,8 @@ Sigue estos pasos en cada tipo de equipo:
 En PowerShell dentro de `sistema_asistencia_nfc`:
 
 ```
-..\.venv\Scripts\pip install pyinstaller
-..\.venv\Scripts\pyinstaller --noconsole --onefile --name AsistenciaNFC main.py
+.\.venv\Scripts\pip install pyinstaller
+.\.venv\Scripts\pyinstaller --noconsole --onefile --name AsistenciaNFC main.py
 ```
 
 El ejecutable quedará en `dist/AsistenciaNFC.exe`. Aún necesitarás drivers del lector y, si usas SQLite local o fotos, asegurar rutas accesibles.

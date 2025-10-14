@@ -3,8 +3,8 @@ setlocal
 REM Ejecuta la app con Python 3.11 (lector real) si existe, si no, usa .venv normal
 set ROOT=%~dp0
 set APPDIR=%ROOT%
-set PY311=%ROOT%..\.venv311\Scripts\python.exe
-set PYVENV=%ROOT%..\.venv\Scripts\python.exe
+set PY311=%ROOT%\.venv311\Scripts\python.exe
+set PYVENV=%ROOT%\.venv\Scripts\python.exe
 
 if exist "%PY311%" (
   set PY=%PY311%
